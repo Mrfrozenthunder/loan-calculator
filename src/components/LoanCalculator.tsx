@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Calculator } from 'lucide-react';
 import { calculateEMI, calculateSubLoanSplit, calculatePartnerLoan } from '../utils/calculations';
+import Modal from './Modal'; // Import the Modal component
 
 interface CalculationResults {
   bankEMI: number;
@@ -15,6 +16,10 @@ interface CalculationResults {
   finalPartnerAShare?: number;
   finalPartnerAEMI?: number;
   finalPartnerBCDTotalEMI?: number;
+  initialPartnerAShare: number;
+  initialPartnerAEMI: number;
+  initialPartnerBCDShare: number;
+  initialPartnerBCDEMI: number;
 }
 
 export default function LoanCalculator() {
@@ -30,6 +35,7 @@ export default function LoanCalculator() {
   });
 
   const [results, setResults] = useState<CalculationResults | null>(null);
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -39,10 +45,14 @@ export default function LoanCalculator() {
     }));
   };
 
+  const formatNumber = (num: number) => {
+    return num.toLocaleString('en-IN');
+  };
+
   const calculateResults = () => {
     // Validate inputs
     if (Object.values(inputs).some(value => value === '' || isNaN(value) || value < 0)) {
-      alert('Please enter valid positive numbers for all fields');
+      setModalMessage('Please enter valid positive numbers for all fields');
       return;
     }
 
@@ -51,7 +61,7 @@ export default function LoanCalculator() {
 
     // Validate if bank loan is sufficient for Partner A's minimum share
     if (inputs.bankLoan < minRequiredFundingA) {
-      alert(`Bank loan amount is insufficient. Partner A needs minimum ₹${minRequiredFundingA.toLocaleString()} based on their ${inputs.equityShare}% equity share.`);
+      setModalMessage(`Bank loan amount is insufficient. Partner A needs minimum ₹${formatNumber(minRequiredFundingA)} based on their ${inputs.equityShare}% equity share.`);
       return;
     }
 
@@ -73,6 +83,12 @@ export default function LoanCalculator() {
         )
       );
     }
+
+    // Calculate initial split without premium
+    const initialPartnerAShare = (partnerAPrincipal / inputs.bankLoan) * 100;
+    const initialPartnerAEMI = calculateEMI(partnerAPrincipal, inputs.bankRate, inputs.tenureYears);
+    const initialPartnerBCDShare = 100 - initialPartnerAShare;
+    const initialPartnerBCDEMI = bankEMI - initialPartnerAEMI;
 
     // Calculate split with premium
     const splitResults = calculateSubLoanSplit(
@@ -121,13 +137,21 @@ export default function LoanCalculator() {
       partnerLoanEMI: partnerLoanResults?.monthlyPayment,
       finalPartnerAShare: inputs.targetShare,
       finalPartnerAEMI,
-      finalPartnerBCDTotalEMI
+      finalPartnerBCDTotalEMI,
+      initialPartnerAShare,
+      initialPartnerAEMI,
+      initialPartnerBCDShare,
+      initialPartnerBCDEMI
     });
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
+        {/* Modal for displaying validation messages */}
+        {modalMessage && (
+          <Modal message={modalMessage} onClose={() => setModalMessage(null)} />
+        )}
         <div className="text-center mb-8">
           <Calculator className="mx-auto h-12 w-12 text-indigo-600" />
           <h1 className="mt-3 text-3xl font-extrabold text-gray-900">
@@ -262,7 +286,23 @@ export default function LoanCalculator() {
             <div className="space-y-4">
               <div className="border-b border-gray-200 pb-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Bank Loan Details</h3>
-                <p className="text-sm text-gray-600">Monthly EMI: ₹{results.bankEMI.toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Monthly EMI: ₹{formatNumber(results.bankEMI)}</p>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Initial Split (Before Premium)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Partner A</p>
+                    <p className="text-sm text-gray-900">Share: {results.initialPartnerAShare.toFixed(2)}%</p>
+                    <p className="text-sm text-gray-900">EMI: ₹{formatNumber(results.initialPartnerAEMI)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Partners B, C, D</p>
+                    <p className="text-sm text-gray-900">Share: {results.initialPartnerBCDShare.toFixed(2)}%</p>
+                    <p className="text-sm text-gray-900">EMI: ₹{formatNumber(results.initialPartnerBCDEMI)}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="border-b border-gray-200 pb-4">
@@ -271,39 +311,36 @@ export default function LoanCalculator() {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Partner A</p>
                     <p className="text-sm text-gray-900">Share: {results.partnerAShare.toFixed(2)}%</p>
-                    <p className="text-sm text-gray-900">EMI: ₹{results.partnerAEMI.toLocaleString()}</p>
+                    <p className="text-sm text-gray-900">EMI: ₹{formatNumber(results.partnerAEMI)}</p>
                     <p className="text-sm text-gray-900">Effective Ownership Cost: {results.effectiveOwnershipCost.toFixed(2)}%</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Partners B, C, D</p>
                     <p className="text-sm text-gray-900">Share: {results.partnerBCDShare.toFixed(2)}%</p>
-                    <p className="text-sm text-gray-900">EMI: ₹{results.partnerBCDEMI.toLocaleString()}</p>
+                    <p className="text-sm text-gray-900">EMI: ₹{formatNumber(results.partnerBCDEMI)}</p>
                   </div>
                 </div>
               </div>
 
               {results.partnerLoanPrincipal && (
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Final Arrangement</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="border-b border-gray-200 pb-4">
-                      <p className="text-sm font-medium text-gray-500">Partner Loan Details</p>
-                      <p className="text-sm text-gray-900">Loan Amount: ₹{results.partnerLoanPrincipal.toLocaleString()}</p>
-                      <p className="text-sm text-gray-900">Partner Loan EMI: ₹{results.partnerLoanEMI?.toLocaleString()}</p>
-                    </div>
-                    
-                    <div className="border-b border-gray-200 pb-4">
-                      <p className="text-sm font-medium text-gray-500">Partner A's Final Position</p>
-                      <p className="text-sm text-gray-900">Share: {results.finalPartnerAShare}%</p>
-                      <p className="text-sm text-gray-900">Final Bank EMI: ₹{results.finalPartnerAEMI?.toLocaleString()}</p>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Partner Loan Details</h3>
+                    <p className="text-sm text-gray-500">Loan Amount: <span className="font-semibold text-gray-900">₹{formatNumber(results.partnerLoanPrincipal)}</span></p>
+                    <p className="text-sm text-gray-500">Partner Loan EMI: ₹{formatNumber(results.partnerLoanEMI)}</p>
+                  </div>
+                  
+                  <div className="border-b border-gray-200 pb-4">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Partner A's Final Position</h3>
+                    <p className="text-sm text-gray-500">Share: {results.finalPartnerAShare}%</p>
+                    <p className="text-sm text-gray-500">Final Bank EMI: ₹{formatNumber(results.finalPartnerAEMI)}</p>
+                  </div>
 
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Partners B, C, D's Final Position</p>
-                      <p className="text-sm text-gray-900">Bank EMI with Premium: ₹{results.partnerBCDEMI.toLocaleString()}</p>
-                      <p className="text-sm text-gray-900">Partner Loan EMI: ₹{results.partnerLoanEMI?.toLocaleString()}</p>
-                      <p className="text-sm font-medium text-gray-900 mt-2">Total Monthly Payment: ₹{results.finalPartnerBCDTotalEMI?.toLocaleString()}</p>
-                    </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Partners B, C, D's Final Position</h3>
+                    <p className="text-sm text-gray-500">Bank EMI with Premium: ₹{formatNumber(results.partnerBCDEMI)}</p>
+                    <p className="text-sm text-gray-500">Partner Loan EMI: ₹{formatNumber(results.partnerLoanEMI)}</p>
+                    <p className="text-sm font-medium text-gray-900 mt-2">Total Monthly Payment: ₹{formatNumber(results.finalPartnerBCDTotalEMI)}</p>
                   </div>
                 </div>
               )}
