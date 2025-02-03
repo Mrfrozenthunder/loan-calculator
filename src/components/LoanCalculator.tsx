@@ -46,11 +46,35 @@ export default function LoanCalculator() {
       return;
     }
 
+    // Calculate minimum required funding for Partner A based on equity share
+    const minRequiredFundingA = (inputs.projectCapex * inputs.equityShare) / 100;
+
+    // Validate if bank loan is sufficient for Partner A's minimum share
+    if (inputs.bankLoan < minRequiredFundingA) {
+      alert(`Bank loan amount is insufficient. Partner A needs minimum ₹${minRequiredFundingA.toLocaleString()} based on their ${inputs.equityShare}% equity share.`);
+      return;
+    }
+
     // Calculate bank EMI
     const bankEMI = calculateEMI(inputs.bankLoan, inputs.bankRate, inputs.tenureYears);
 
-    // Calculate initial split with premium
-    const partnerAPrincipal = inputs.bankLoan * 0.8; // Assuming 80% usage by Partner A
+    // Calculate Partner A's principal
+    let partnerAPrincipal;
+    if (inputs.bankLoan <= minRequiredFundingA) {
+      // If bank loan is exactly equal to or less than minimum required, use entire amount
+      partnerAPrincipal = inputs.bankLoan;
+    } else {
+      // If bank loan is more than minimum required, calculate proportional share
+      partnerAPrincipal = Math.max(
+        minRequiredFundingA,
+        Math.min(
+          inputs.bankLoan,
+          (inputs.projectCapex * inputs.equityShare) / 100
+        )
+      );
+    }
+
+    // Calculate split with premium
     const splitResults = calculateSubLoanSplit(
       inputs.bankLoan,
       partnerAPrincipal,
